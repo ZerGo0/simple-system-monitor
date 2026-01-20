@@ -27,7 +27,6 @@ Create `/opt/simple-system-monitor/.env`:
 sudo tee /opt/simple-system-monitor/.env >/dev/null <<'ENV'
 TELEGRAM_BOT_TOKEN=your-token
 TELEGRAM_CHAT_ID=your-chat-id
-SYSTEM_NAME=your-host-name
 ENV
 sudo chown simple-system-monitor:simple-system-monitor /opt/simple-system-monitor/.env
 sudo chmod 0600 /opt/simple-system-monitor/.env
