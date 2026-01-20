@@ -36,6 +36,9 @@ export TELEGRAM_CHAT_ID="<chat-id>"
 go run ./cmd/simple-system-monitor
 ```
 
+## Run as a service (Linux)
+See the systemd setup guide: [docs/linux-service.md](docs/linux-service.md)
+
 ## Build (cross-platform)
 ```bash
 GOOS=linux GOARCH=amd64 go build -o simple-system-monitor ./cmd/simple-system-monitor
