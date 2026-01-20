@@ -1,0 +1,45 @@
+name: build
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 12 * * 0"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          mkdir -p dist
+          bin_name=simple-system-monitor-${{ matrix.goos }}-${{ matrix.goarch }}
+          if [ "${{ matrix.goos }}" = "windows" ]; then bin_name="${bin_name}.exe"; fi
+          go build -trimpath -ldflags "-s -w" -o "dist/${bin_name}" ./cmd/simple-system-monitor
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: simple-system-monitor-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/simple-system-monitor-${{ matrix.goos }}-${{ matrix.goarch }}*
