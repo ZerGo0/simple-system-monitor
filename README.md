@@ -11,6 +11,7 @@ Environment variables or flags:
 - `.env` file is loaded automatically when present.
 - `TELEGRAM_BOT_TOKEN` / `-telegram-token`
 - `TELEGRAM_CHAT_ID` / `-telegram-chat-id`
+- `SYSTEM_NAME` / `-system-name` (override hostname in messages)
 - `INTERVAL` / `-interval` (log interval, default `1m`)
 - `TELEGRAM_INTERVAL` / `-telegram-interval` (metrics send interval, default `168h`)
 - `MOUNT_INCLUDE` / `-mount-include` (comma list; only these mounts monitored)

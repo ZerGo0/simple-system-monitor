@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"html"
 	"os"
 	"os/signal"
@@ -53,6 +54,10 @@ func main() {
 		logger.Warn("hostname lookup failed", zap.Error(err))
 		hostname = "unknown"
 	}
+	displayName := hostname
+	if cfg.SystemName != "" {
+		displayName = fmt.Sprintf("%s (%s)", cfg.SystemName, hostname)
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), signalList()...)
 	defer stop()
@@ -72,7 +77,7 @@ func main() {
 	alertState := alerts.NewState()
 
 	now := time.Now()
-	if err := runOnce(ctx, logger, telegramClient, hostname, cfg, alertState, now, sendTelegramMetrics); err != nil {
+	if err := runOnce(ctx, logger, telegramClient, displayName, cfg, alertState, now, sendTelegramMetrics); err != nil {
 		logger.Error("initial run failed", zap.Error(err))
 	}
 
@@ -96,7 +101,7 @@ func main() {
 				sendNow = true
 				nextTelegramAt = now.Add(cfg.TelegramInterval)
 			}
-			if err := runOnce(ctx, logger, telegramClient, hostname, cfg, alertState, now, sendNow); err != nil {
+			if err := runOnce(ctx, logger, telegramClient, displayName, cfg, alertState, now, sendNow); err != nil {
 				logger.Error("run failed", zap.Error(err))
 			}
 		}

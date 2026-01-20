@@ -11,6 +11,7 @@ import (
 type Config struct {
 	TelegramToken    string
 	TelegramChatID   string
+	SystemName       string
 	LogInterval      time.Duration
 	TelegramInterval time.Duration
 	CPUThreshold     float64
@@ -46,6 +47,7 @@ func LoadFrom(fs *flag.FlagSet, getenv func(string) string, args []string) Confi
 	defaultDiskWindow := envDuration(getenv, "DISK_ALERT_WINDOW", 5*time.Minute)
 	defaultToken := envString(getenv, "TELEGRAM_BOT_TOKEN", "")
 	defaultChat := envString(getenv, "TELEGRAM_CHAT_ID", "")
+	defaultSystemName := envString(getenv, "SYSTEM_NAME", "")
 	defaultMountInclude := envString(getenv, "MOUNT_INCLUDE", "")
 	defaultMountExclude := envString(getenv, "MOUNT_EXCLUDE", "/dev*,/proc*,/sys*,/run*")
 	defaultFstypeExclude := envString(getenv, "FSTYPE_EXCLUDE", "tmpfs,devtmpfs,overlay,proc,sysfs,devpts,cgroup,cgroup2,pstore,securityfs,debugfs,tracefs,configfs,ramfs,hugetlbfs,mqueue,autofs,binfmt_misc,fusectl,efivarfs")
@@ -60,6 +62,7 @@ func LoadFrom(fs *flag.FlagSet, getenv func(string) string, args []string) Confi
 	diskAlertWindow := fs.Duration("disk-alert-window", defaultDiskWindow, "disk threshold window before alert")
 	telegramToken := fs.String("telegram-token", defaultToken, "telegram bot token")
 	telegramChatID := fs.String("telegram-chat-id", defaultChat, "telegram chat id")
+	systemName := fs.String("system-name", defaultSystemName, "custom system name")
 	mountInclude := fs.String("mount-include", defaultMountInclude, "comma-separated mountpoints to include (overrides exclude)")
 	mountExclude := fs.String("mount-exclude", defaultMountExclude, "comma-separated mountpoints to exclude (supports * suffix)")
 	fstypeExclude := fs.String("fstype-exclude", defaultFstypeExclude, "comma-separated filesystem types to exclude")
@@ -71,6 +74,7 @@ func LoadFrom(fs *flag.FlagSet, getenv func(string) string, args []string) Confi
 	return Config{
 		TelegramToken:    *telegramToken,
 		TelegramChatID:   *telegramChatID,
+		SystemName:       strings.TrimSpace(*systemName),
 		LogInterval:      *logInterval,
 		TelegramInterval: *telegramInterval,
 		CPUThreshold:     clampPercent(*cpuThreshold),
