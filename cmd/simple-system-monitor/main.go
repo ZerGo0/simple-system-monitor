@@ -13,10 +13,10 @@ import (
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 
-	"simple-system-monitor/internal/alerts"
-	"simple-system-monitor/internal/config"
-	"simple-system-monitor/internal/monitor"
-	"simple-system-monitor/internal/telegram"
+	"github.com/zergo0/simple-system-monitor/internal/alerts"
+	"github.com/zergo0/simple-system-monitor/internal/config"
+	"github.com/zergo0/simple-system-monitor/internal/monitor"
+	"github.com/zergo0/simple-system-monitor/internal/telegram"
 )
 
 func main() {

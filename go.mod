@@ -1,4 +1,4 @@
-module simple-system-monitor
+module github.com/zergo0/simple-system-monitor
 
 go 1.25.6
 

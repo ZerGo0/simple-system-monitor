@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"simple-system-monitor/internal/monitor"
+	"github.com/zergo0/simple-system-monitor/internal/monitor"
 )
 
 func TestCPUAlertWindow(t *testing.T) {

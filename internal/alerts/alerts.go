@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"simple-system-monitor/internal/monitor"
+	"github.com/zergo0/simple-system-monitor/internal/monitor"
 )
 
 type Thresholds struct {

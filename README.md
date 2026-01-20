@@ -39,3 +39,20 @@ GOOS=linux GOARCH=amd64 go build -o simple-system-monitor ./cmd/simple-system-mo
 GOOS=darwin GOARCH=arm64 go build -o simple-system-monitor ./cmd/simple-system-monitor
 GOOS=windows GOARCH=amd64 go build -o simple-system-monitor.exe ./cmd/simple-system-monitor
 ```
+
+## Download releases
+Releases are published automatically (weekly + manual runs). Files are named:
+`simple-system-monitor-<os>-<arch>[.exe]`
+
+One-liners (public repo, no token needed):
+```bash
+curl -L -o simple-system-monitor-linux-amd64 \
+  https://github.com/ZerGo0/github.com/zergo0/simple-system-monitor/releases/latest/download/simple-system-monitor-linux-amd64
+
+wget -O simple-system-monitor-linux-amd64 \
+  https://github.com/ZerGo0/github.com/zergo0/simple-system-monitor/releases/latest/download/simple-system-monitor-linux-amd64
+```
+
+Examples:
+- macOS arm64: `simple-system-monitor-darwin-arm64`
+- Windows: `simple-system-monitor-windows-amd64.exe`
