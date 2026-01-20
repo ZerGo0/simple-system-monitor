@@ -159,9 +159,9 @@ func formatAlertHTML(hostname string, alertsList []string) string {
 	if len(alertsList) == 0 {
 		return b.String()
 	}
-	b.WriteString("\n<pre>")
+	b.WriteString("\n<pre>\n")
 	_, _ = b.WriteString(html.EscapeString(strings.Join(alertsList, "\n")))
-	b.WriteString("</pre>")
+	b.WriteString("\n</pre>")
 	return b.String()
 }
 

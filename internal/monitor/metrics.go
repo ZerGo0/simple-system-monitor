@@ -6,6 +6,7 @@ import (
 	"html"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/disk"
@@ -82,37 +83,54 @@ func Collect(ctx context.Context, logger *zap.Logger, hostname string, filter Fi
 func FormatMetricsHTML(metrics Metrics) string {
 	var b strings.Builder
 	host := html.EscapeString(metrics.Hostname)
-	_, _ = fmt.Fprintf(&b, "<b>Simple System Monitor</b>\n<i>%s</i>\n\n", host)
-	_, _ = fmt.Fprintf(&b, "<b>CPU</b>  %.1f%% %s\n", metrics.CPUPercent, statusEmoji(metrics.CPUPercent))
-	_, _ = fmt.Fprintf(&b, "<b>MEM</b>  %.1f%% %s\n", metrics.MemPercent, statusEmoji(metrics.MemPercent))
-	b.WriteString("\n<b>Disk</b>")
+	_, _ = fmt.Fprintf(&b, "<b>Simple System Monitor</b>\n<i>%s</i>", host)
 	if len(metrics.Disks) == 0 {
-		b.WriteString("\n<pre>none</pre>")
+		b.WriteString("\n<pre>\n")
+		_, _ = fmt.Fprintf(&b, "CPU  %.1f%% %s\n", metrics.CPUPercent, statusEmoji(metrics.CPUPercent))
+		_, _ = fmt.Fprintf(&b, "MEM  %.1f%% %s\n", metrics.MemPercent, statusEmoji(metrics.MemPercent))
+		b.WriteString("Disk\nnone\n</pre>")
 		return b.String()
 	}
 
 	maxMount := maxMountWidth(metrics.Disks, 24)
-	const usageWidth = 5
-	const statusWidth = 2
-	const sizeWidth = 14
 	header := []string{"Mount", "Use", "St", "Used/Total"}
-	b.WriteString("\n<pre>")
-	b.WriteString(tableTop(maxMount, usageWidth, statusWidth, sizeWidth))
-	b.WriteString(tableRow(maxMount, usageWidth, statusWidth, sizeWidth, header))
-	b.WriteString(tableMid(maxMount, usageWidth, statusWidth, sizeWidth))
-	for i, d := range metrics.Disks {
+	rows := make([][]string, 0, len(metrics.Disks))
+	mountWidth := runeLen(header[0])
+	useWidth := runeLen(header[1])
+	statusWidth := runeLen(header[2])
+	sizeWidth := runeLen(header[3])
+
+	for _, d := range metrics.Disks {
 		totalGiB := bytesToGiB(d.TotalBytes)
 		usedGiB := bytesToGiB(d.UsedBytes)
-		mount := html.EscapeString(formatMount(d.Mountpoint, maxMount))
+		mount := formatMount(d.Mountpoint, maxMount)
 		use := fmt.Sprintf("%.1f%%", d.UsedPercent)
 		status := statusEmoji(d.UsedPercent)
 		size := fmt.Sprintf("%.1f/%.1fGiB", usedGiB, totalGiB)
-		b.WriteString(tableRow(maxMount, usageWidth, statusWidth, sizeWidth, []string{mount, use, status, size}))
-		if i < len(metrics.Disks)-1 {
-			b.WriteString(tableMid(maxMount, usageWidth, statusWidth, sizeWidth))
+
+		rows = append(rows, []string{mount, use, status, size})
+		mountWidth = maxInt(mountWidth, runeLen(mount))
+		useWidth = maxInt(useWidth, runeLen(use))
+		statusWidth = maxInt(statusWidth, runeLen(status))
+		sizeWidth = maxInt(sizeWidth, runeLen(size))
+	}
+
+	b.WriteString("\n<pre>\n")
+	_, _ = fmt.Fprintf(&b, "CPU  %.1f%% %s\n", metrics.CPUPercent, statusEmoji(metrics.CPUPercent))
+	_, _ = fmt.Fprintf(&b, "MEM  %.1f%% %s\n\n", metrics.MemPercent, statusEmoji(metrics.MemPercent))
+	b.WriteString("Disk\n")
+	b.WriteString(tableTop(mountWidth, useWidth, statusWidth, sizeWidth))
+	b.WriteString(tableRow(mountWidth, useWidth, statusWidth, sizeWidth, header))
+	b.WriteString(tableMid(mountWidth, useWidth, statusWidth, sizeWidth))
+	for i, row := range rows {
+		row[0] = html.EscapeString(row[0])
+		row[3] = html.EscapeString(row[3])
+		b.WriteString(tableRow(mountWidth, useWidth, statusWidth, sizeWidth, row))
+		if i < len(rows)-1 {
+			b.WriteString(tableMid(mountWidth, useWidth, statusWidth, sizeWidth))
 		}
 	}
-	b.WriteString(tableBottom(maxMount, usageWidth, statusWidth, sizeWidth))
+	b.WriteString(tableBottom(mountWidth, useWidth, statusWidth, sizeWidth))
 	b.WriteString("</pre>")
 	return b.String()
 }
@@ -135,8 +153,8 @@ func statusEmoji(percent float64) string {
 func maxMountWidth(disks []DiskUsage, max int) int {
 	width := 1
 	for _, d := range disks {
-		if len(d.Mountpoint) > width {
-			width = len(d.Mountpoint)
+		if runeLen(d.Mountpoint) > width {
+			width = runeLen(d.Mountpoint)
 		}
 	}
 	if max > 0 && width > max {
@@ -146,13 +164,24 @@ func maxMountWidth(disks []DiskUsage, max int) int {
 }
 
 func formatMount(mount string, width int) string {
-	if width <= 0 || len(mount) <= width {
+	if width <= 0 || runeLen(mount) <= width {
 		return mount
 	}
 	if width <= 3 {
-		return mount[:width]
+		return string([]rune(mount)[:width])
 	}
-	return mount[:width-1] + "…"
+	return string([]rune(mount)[:width-1]) + "…"
+}
+
+func runeLen(value string) int {
+	return utf8.RuneCountInString(value)
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func tableTop(mountW, useW, statusW, sizeW int) string {
@@ -194,18 +223,18 @@ func padRight(value string, width int) string {
 	if width <= 0 {
 		return value
 	}
-	if len(value) >= width {
+	if runeLen(value) >= width {
 		return value
 	}
-	return value + strings.Repeat(" ", width-len(value))
+	return value + strings.Repeat(" ", width-runeLen(value))
 }
 
 func padLeft(value string, width int) string {
 	if width <= 0 {
 		return value
 	}
-	if len(value) >= width {
+	if runeLen(value) >= width {
 		return value
 	}
-	return strings.Repeat(" ", width-len(value)) + value
+	return strings.Repeat(" ", width-runeLen(value)) + value
 }
