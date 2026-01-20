@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"html"
 	"os"
 	"os/signal"
 	"runtime"
@@ -20,7 +21,7 @@ import (
 )
 
 func main() {
-	logger, _ := zap.NewDevelopment()
+	logger, _ := zap.NewProduction()
 	defer func() {
 		_ = logger.Sync()
 	}()
@@ -120,7 +121,7 @@ func runOnce(ctx context.Context, logger *zap.Logger, telegramClient *telegram.C
 	)
 
 	if sendTelegramMetrics && telegramClient != nil {
-		if err := telegramClient.SendMessage(ctx, monitor.FormatMetrics(metrics)); err != nil {
+		if err := telegramClient.SendHTMLMessage(ctx, monitor.FormatMetricsHTML(metrics)); err != nil {
 			logger.Warn("telegram metrics send failed", zap.Error(err))
 		}
 	}
@@ -136,14 +137,27 @@ func runOnce(ctx context.Context, logger *zap.Logger, telegramClient *telegram.C
 	if len(alertsList) > 0 {
 		logger.Warn("alerts triggered", zap.String("hostname", metrics.Hostname), zap.Strings("alerts", alertsList))
 		if telegramClient != nil {
-			alertText := "ALERT " + metrics.Hostname + "\n" + strings.Join(alertsList, "\n")
-			if err := telegramClient.SendMessage(ctx, alertText); err != nil {
+			alertText := formatAlertHTML(metrics.Hostname, alertsList)
+			if err := telegramClient.SendHTMLMessage(ctx, alertText); err != nil {
 				logger.Warn("telegram alert send failed", zap.Error(err))
 			}
 		}
 	}
 
 	return nil
+}
+
+func formatAlertHTML(hostname string, alertsList []string) string {
+	var b strings.Builder
+	_, _ = b.WriteString("<b>ALERT</b> ")
+	_, _ = b.WriteString(html.EscapeString(hostname))
+	if len(alertsList) == 0 {
+		return b.String()
+	}
+	b.WriteString("\n<pre>")
+	_, _ = b.WriteString(html.EscapeString(strings.Join(alertsList, "\n")))
+	b.WriteString("</pre>")
+	return b.String()
 }
 
 func signalList() []os.Signal {

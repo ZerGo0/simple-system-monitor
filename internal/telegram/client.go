@@ -18,8 +18,9 @@ type Client struct {
 }
 
 type message struct {
-	ChatID string `json:"chat_id"`
-	Text   string `json:"text"`
+	ChatID    string `json:"chat_id"`
+	Text      string `json:"text"`
+	ParseMode string `json:"parse_mode,omitempty"`
 }
 
 const defaultBaseURL = "https://api.telegram.org"
@@ -46,13 +47,18 @@ func NewWithBaseURL(token string, chatID string, baseURL string, httpClient *htt
 	}
 }
 
-func (c *Client) SendMessage(ctx context.Context, text string) error {
+func (c *Client) SendHTMLMessage(ctx context.Context, text string) error {
+	return c.send(ctx, text, "HTML")
+}
+
+func (c *Client) send(ctx context.Context, text string, parseMode string) error {
 	if c == nil {
 		return errors.New("telegram client not configured")
 	}
 	payload := message{
-		ChatID: c.chatID,
-		Text:   text,
+		ChatID:    c.chatID,
+		Text:      text,
+		ParseMode: parseMode,
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {

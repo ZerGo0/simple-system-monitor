@@ -3,6 +3,7 @@ package monitor
 import (
 	"context"
 	"fmt"
+	"html"
 	"strings"
 	"time"
 
@@ -78,19 +79,27 @@ func Collect(ctx context.Context, logger *zap.Logger, hostname string, filter Fi
 	}, nil
 }
 
-func FormatMetrics(metrics Metrics) string {
+func FormatMetricsHTML(metrics Metrics) string {
 	var b strings.Builder
-	_, _ = fmt.Fprintf(&b, "Host: %s\nCPU: %.1f%%\nMemory: %.1f%%\nDisk:", metrics.Hostname, metrics.CPUPercent, metrics.MemPercent)
+	host := html.EscapeString(metrics.Hostname)
+	_, _ = fmt.Fprintf(&b, "<b>Host</b>: %s\n<b>CPU</b>: %.1f%%\n<b>Memory</b>: %.1f%%\n<b>Disk</b>:", host, metrics.CPUPercent, metrics.MemPercent)
 	if len(metrics.Disks) == 0 {
 		b.WriteString(" none")
 		return b.String()
 	}
 
-	for _, d := range metrics.Disks {
+	b.WriteString("\n<pre>")
+	for i, d := range metrics.Disks {
 		totalGiB := bytesToGiB(d.TotalBytes)
 		usedGiB := bytesToGiB(d.UsedBytes)
-		_, _ = fmt.Fprintf(&b, "\n- %s (%s): %.1f%% (%.1f/%.1f GiB)", d.Mountpoint, d.Fstype, d.UsedPercent, usedGiB, totalGiB)
+		mount := html.EscapeString(d.Mountpoint)
+		fstype := html.EscapeString(d.Fstype)
+		_, _ = fmt.Fprintf(&b, "%s (%s): %.1f%% (%.1f/%.1f GiB)", mount, fstype, d.UsedPercent, usedGiB, totalGiB)
+		if i < len(metrics.Disks)-1 {
+			b.WriteString("\n")
+		}
 	}
+	b.WriteString("</pre>")
 	return b.String()
 }
 
