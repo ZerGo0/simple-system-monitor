@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"html"
+	"math"
 	"strings"
 	"time"
 
@@ -82,9 +83,12 @@ func Collect(ctx context.Context, logger *zap.Logger, hostname string, filter Fi
 func FormatMetricsHTML(metrics Metrics) string {
 	var b strings.Builder
 	host := html.EscapeString(metrics.Hostname)
-	_, _ = fmt.Fprintf(&b, "<b>Host</b>: %s\n<b>CPU</b>: %.1f%%\n<b>Memory</b>: %.1f%%\n<b>Disk</b>:", host, metrics.CPUPercent, metrics.MemPercent)
+	_, _ = fmt.Fprintf(&b, "<b>Simple System Monitor</b>\n<i>%s</i>\n\n", host)
+	_, _ = fmt.Fprintf(&b, "<b>CPU</b>  %.1f%% %s %s\n", metrics.CPUPercent, statusEmoji(metrics.CPUPercent), bar(metrics.CPUPercent, 12))
+	_, _ = fmt.Fprintf(&b, "<b>MEM</b>  %.1f%% %s %s\n", metrics.MemPercent, statusEmoji(metrics.MemPercent), bar(metrics.MemPercent, 12))
+	b.WriteString("\n<b>Disk</b>")
 	if len(metrics.Disks) == 0 {
-		b.WriteString(" none")
+		b.WriteString("\n<pre>none</pre>")
 		return b.String()
 	}
 
@@ -93,8 +97,7 @@ func FormatMetricsHTML(metrics Metrics) string {
 		totalGiB := bytesToGiB(d.TotalBytes)
 		usedGiB := bytesToGiB(d.UsedBytes)
 		mount := html.EscapeString(d.Mountpoint)
-		fstype := html.EscapeString(d.Fstype)
-		_, _ = fmt.Fprintf(&b, "%s (%s): %.1f%% (%.1f/%.1f GiB)", mount, fstype, d.UsedPercent, usedGiB, totalGiB)
+		_, _ = fmt.Fprintf(&b, "%-16s %5.1f%% %s %s %5.1f/%-5.1fGiB", mount, d.UsedPercent, statusEmoji(d.UsedPercent), bar(d.UsedPercent, 10), usedGiB, totalGiB)
 		if i < len(metrics.Disks)-1 {
 			b.WriteString("\n")
 		}
@@ -105,4 +108,35 @@ func FormatMetricsHTML(metrics Metrics) string {
 
 func bytesToGiB(value uint64) float64 {
 	return float64(value) / (1024 * 1024 * 1024)
+}
+
+func statusEmoji(percent float64) string {
+	switch {
+	case percent >= 90:
+		return "🟥"
+	case percent >= 75:
+		return "🟨"
+	default:
+		return "🟩"
+	}
+}
+
+func bar(percent float64, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	if percent < 0 {
+		percent = 0
+	}
+	if percent > 100 {
+		percent = 100
+	}
+	filled := int(math.Round((percent / 100) * float64(width)))
+	if filled < 0 {
+		filled = 0
+	}
+	if filled > width {
+		filled = width
+	}
+	return "[" + strings.Repeat("=", filled) + strings.Repeat("-", width-filled) + "]"
 }

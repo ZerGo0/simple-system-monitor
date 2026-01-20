@@ -47,11 +47,9 @@ Releases are published automatically (weekly + manual runs). Files are named:
 
 One-liners (public repo, no token needed):
 ```bash
-curl -L -o simple-system-monitor-linux-amd64 \
-  https://github.com/ZerGo0/simple-system-monitor/releases/latest/download/simple-system-monitor-linux-amd64
+curl -L -o simple-system-monitor https://github.com/ZerGo0/simple-system-monitor/releases/latest/download/simple-system-monitor-linux-amd64
 
-wget -O simple-system-monitor-linux-amd64 \
-  https://github.com/ZerGo0/simple-system-monitor/releases/latest/download/simple-system-monitor-linux-amd64
+wget -O simple-system-monitor https://github.com/ZerGo0/simple-system-monitor/releases/latest/download/simple-system-monitor-linux-amd64
 ```
 
 Examples:

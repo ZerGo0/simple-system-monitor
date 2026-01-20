@@ -154,7 +154,7 @@ func runOnce(ctx context.Context, logger *zap.Logger, telegramClient *telegram.C
 
 func formatAlertHTML(hostname string, alertsList []string) string {
 	var b strings.Builder
-	_, _ = b.WriteString("<b>ALERT</b> ")
+	_, _ = b.WriteString("<b>🚨 ALERT</b> ")
 	_, _ = b.WriteString(html.EscapeString(hostname))
 	if len(alertsList) == 0 {
 		return b.String()
