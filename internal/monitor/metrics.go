@@ -91,16 +91,28 @@ func FormatMetricsHTML(metrics Metrics) string {
 		return b.String()
 	}
 
+	maxMount := maxMountWidth(metrics.Disks, 24)
+	const usageWidth = 5
+	const statusWidth = 2
+	const sizeWidth = 14
+	header := []string{"Mount", "Use", "St", "Used/Total"}
 	b.WriteString("\n<pre>")
+	b.WriteString(tableTop(maxMount, usageWidth, statusWidth, sizeWidth))
+	b.WriteString(tableRow(maxMount, usageWidth, statusWidth, sizeWidth, header))
+	b.WriteString(tableMid(maxMount, usageWidth, statusWidth, sizeWidth))
 	for i, d := range metrics.Disks {
 		totalGiB := bytesToGiB(d.TotalBytes)
 		usedGiB := bytesToGiB(d.UsedBytes)
-		mount := html.EscapeString(d.Mountpoint)
-		_, _ = fmt.Fprintf(&b, "%-16s %5.1f%% %s %5.1f/%-5.1fGiB", mount, d.UsedPercent, statusEmoji(d.UsedPercent), usedGiB, totalGiB)
+		mount := html.EscapeString(formatMount(d.Mountpoint, maxMount))
+		use := fmt.Sprintf("%.1f%%", d.UsedPercent)
+		status := statusEmoji(d.UsedPercent)
+		size := fmt.Sprintf("%.1f/%.1fGiB", usedGiB, totalGiB)
+		b.WriteString(tableRow(maxMount, usageWidth, statusWidth, sizeWidth, []string{mount, use, status, size}))
 		if i < len(metrics.Disks)-1 {
-			b.WriteString("\n")
+			b.WriteString(tableMid(maxMount, usageWidth, statusWidth, sizeWidth))
 		}
 	}
+	b.WriteString(tableBottom(maxMount, usageWidth, statusWidth, sizeWidth))
 	b.WriteString("</pre>")
 	return b.String()
 }
@@ -118,4 +130,82 @@ func statusEmoji(percent float64) string {
 	default:
 		return "🟩"
 	}
+}
+
+func maxMountWidth(disks []DiskUsage, max int) int {
+	width := 1
+	for _, d := range disks {
+		if len(d.Mountpoint) > width {
+			width = len(d.Mountpoint)
+		}
+	}
+	if max > 0 && width > max {
+		return max
+	}
+	return width
+}
+
+func formatMount(mount string, width int) string {
+	if width <= 0 || len(mount) <= width {
+		return mount
+	}
+	if width <= 3 {
+		return mount[:width]
+	}
+	return mount[:width-1] + "…"
+}
+
+func tableTop(mountW, useW, statusW, sizeW int) string {
+	return fmt.Sprintf("┌%s┬%s┬%s┬%s┐\n",
+		strings.Repeat("─", mountW+2),
+		strings.Repeat("─", useW+2),
+		strings.Repeat("─", statusW+2),
+		strings.Repeat("─", sizeW+2),
+	)
+}
+
+func tableMid(mountW, useW, statusW, sizeW int) string {
+	return fmt.Sprintf("├%s┼%s┼%s┼%s┤\n",
+		strings.Repeat("─", mountW+2),
+		strings.Repeat("─", useW+2),
+		strings.Repeat("─", statusW+2),
+		strings.Repeat("─", sizeW+2),
+	)
+}
+
+func tableBottom(mountW, useW, statusW, sizeW int) string {
+	return fmt.Sprintf("└%s┴%s┴%s┴%s┘",
+		strings.Repeat("─", mountW+2),
+		strings.Repeat("─", useW+2),
+		strings.Repeat("─", statusW+2),
+		strings.Repeat("─", sizeW+2),
+	)
+}
+
+func tableRow(mountW, useW, statusW, sizeW int, cols []string) string {
+	mount := padRight(cols[0], mountW)
+	use := padLeft(cols[1], useW)
+	status := padRight(cols[2], statusW)
+	size := padRight(cols[3], sizeW)
+	return fmt.Sprintf("│ %s │ %s │ %s │ %s │\n", mount, use, status, size)
+}
+
+func padRight(value string, width int) string {
+	if width <= 0 {
+		return value
+	}
+	if len(value) >= width {
+		return value
+	}
+	return value + strings.Repeat(" ", width-len(value))
+}
+
+func padLeft(value string, width int) string {
+	if width <= 0 {
+		return value
+	}
+	if len(value) >= width {
+		return value
+	}
+	return strings.Repeat(" ", width-len(value)) + value
 }
