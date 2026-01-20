@@ -20,3 +20,10 @@ func TestTableRowWidth(t *testing.T) {
 		t.Fatalf("expected table row formatting")
 	}
 }
+
+func TestTableRow3Width(t *testing.T) {
+	row := tableRow3(5, 4, 2, []string{"CPU", "1.0%", "🟩"})
+	if len(row) == 0 || !strings.HasPrefix(row, "│") {
+		t.Fatalf("expected table row formatting")
+	}
+}

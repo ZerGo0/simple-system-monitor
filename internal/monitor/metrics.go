@@ -84,21 +84,29 @@ func FormatMetricsHTML(metrics Metrics) string {
 	var b strings.Builder
 	host := html.EscapeString(metrics.Hostname)
 	_, _ = fmt.Fprintf(&b, "<b>Simple System Monitor</b>\n<i>%s</i>", host)
-	if len(metrics.Disks) == 0 {
-		b.WriteString("\n<pre>\n")
-		_, _ = fmt.Fprintf(&b, "CPU  %.1f%% %s\n", metrics.CPUPercent, statusEmoji(metrics.CPUPercent))
-		_, _ = fmt.Fprintf(&b, "MEM  %.1f%% %s\n", metrics.MemPercent, statusEmoji(metrics.MemPercent))
-		b.WriteString("Disk\nnone\n</pre>")
-		return b.String()
+
+	metricHeader := []string{"Metric", "Use", "St"}
+	metricRows := [][]string{
+		{"CPU", fmt.Sprintf("%.1f%%", metrics.CPUPercent), statusEmoji(metrics.CPUPercent)},
+		{"MEM", fmt.Sprintf("%.1f%%", metrics.MemPercent), statusEmoji(metrics.MemPercent)},
 	}
+	metricNameWidth := displayWidth(metricHeader[0])
+	metricUseWidth := displayWidth(metricHeader[1])
+	metricStatusWidth := displayWidth(metricHeader[2])
+	for _, row := range metricRows {
+		metricNameWidth = maxInt(metricNameWidth, displayWidth(row[0]))
+		metricUseWidth = maxInt(metricUseWidth, displayWidth(row[1]))
+		metricStatusWidth = maxInt(metricStatusWidth, displayWidth(row[2]))
+	}
+	metricStatusWidth = maxInt(metricStatusWidth, 2)
 
 	maxMount := maxMountWidth(metrics.Disks, 24)
-	header := []string{"Mount", "Use", "St", "Used/Total"}
-	rows := make([][]string, 0, len(metrics.Disks))
-	mountWidth := runeLen(header[0])
-	useWidth := runeLen(header[1])
-	statusWidth := runeLen(header[2])
-	sizeWidth := runeLen(header[3])
+	diskHeader := []string{"Mount", "Use", "St", "Used/Total"}
+	diskRows := make([][]string, 0, len(metrics.Disks))
+	mountWidth := displayWidth(diskHeader[0])
+	useWidth := displayWidth(diskHeader[1])
+	statusWidth := displayWidth(diskHeader[2])
+	sizeWidth := displayWidth(diskHeader[3])
 
 	for _, d := range metrics.Disks {
 		totalGiB := bytesToGiB(d.TotalBytes)
@@ -108,25 +116,38 @@ func FormatMetricsHTML(metrics Metrics) string {
 		status := statusEmoji(d.UsedPercent)
 		size := fmt.Sprintf("%.1f/%.1fGiB", usedGiB, totalGiB)
 
-		rows = append(rows, []string{mount, use, status, size})
-		mountWidth = maxInt(mountWidth, runeLen(mount))
-		useWidth = maxInt(useWidth, runeLen(use))
-		statusWidth = maxInt(statusWidth, runeLen(status))
-		sizeWidth = maxInt(sizeWidth, runeLen(size))
+		diskRows = append(diskRows, []string{mount, use, status, size})
+		mountWidth = maxInt(mountWidth, displayWidth(mount))
+		useWidth = maxInt(useWidth, displayWidth(use))
+		statusWidth = maxInt(statusWidth, displayWidth(status))
+		sizeWidth = maxInt(sizeWidth, displayWidth(size))
 	}
+	statusWidth = maxInt(statusWidth, 2)
 
 	b.WriteString("\n<pre>\n")
-	_, _ = fmt.Fprintf(&b, "CPU  %.1f%% %s\n", metrics.CPUPercent, statusEmoji(metrics.CPUPercent))
-	_, _ = fmt.Fprintf(&b, "MEM  %.1f%% %s\n\n", metrics.MemPercent, statusEmoji(metrics.MemPercent))
-	b.WriteString("Disk\n")
+	b.WriteString(tableTop3(metricNameWidth, metricUseWidth, metricStatusWidth))
+	b.WriteString(tableRow3(metricNameWidth, metricUseWidth, metricStatusWidth, metricHeader))
+	b.WriteString(tableMid3(metricNameWidth, metricUseWidth, metricStatusWidth))
+	for i, row := range metricRows {
+		b.WriteString(tableRow3(metricNameWidth, metricUseWidth, metricStatusWidth, row))
+		if i < len(metricRows)-1 {
+			b.WriteString(tableMid3(metricNameWidth, metricUseWidth, metricStatusWidth))
+		}
+	}
+	b.WriteString(tableBottom3(metricNameWidth, metricUseWidth, metricStatusWidth))
+	b.WriteString("\n\nDisk\n")
+	if len(metrics.Disks) == 0 {
+		b.WriteString("none\n</pre>")
+		return b.String()
+	}
 	b.WriteString(tableTop(mountWidth, useWidth, statusWidth, sizeWidth))
-	b.WriteString(tableRow(mountWidth, useWidth, statusWidth, sizeWidth, header))
+	b.WriteString(tableRow(mountWidth, useWidth, statusWidth, sizeWidth, diskHeader))
 	b.WriteString(tableMid(mountWidth, useWidth, statusWidth, sizeWidth))
-	for i, row := range rows {
+	for i, row := range diskRows {
 		row[0] = html.EscapeString(row[0])
 		row[3] = html.EscapeString(row[3])
 		b.WriteString(tableRow(mountWidth, useWidth, statusWidth, sizeWidth, row))
-		if i < len(rows)-1 {
+		if i < len(diskRows)-1 {
 			b.WriteString(tableMid(mountWidth, useWidth, statusWidth, sizeWidth))
 		}
 	}
@@ -184,6 +205,58 @@ func maxInt(a, b int) int {
 	return b
 }
 
+func displayWidth(value string) int {
+	width := 0
+	for _, r := range value {
+		width += runeDisplayWidth(r)
+	}
+	return width
+}
+
+func runeDisplayWidth(r rune) int {
+	switch {
+	case r >= 0x1F000:
+		return 2
+	case r >= 0x2600 && r <= 0x27BF:
+		return 2
+	case r == '…':
+		return 1
+	default:
+		return 1
+	}
+}
+
+func tableTop3(nameW, useW, statusW int) string {
+	return fmt.Sprintf("┌%s┬%s┬%s┐\n",
+		strings.Repeat("─", nameW+2),
+		strings.Repeat("─", useW+2),
+		strings.Repeat("─", statusW+2),
+	)
+}
+
+func tableMid3(nameW, useW, statusW int) string {
+	return fmt.Sprintf("├%s┼%s┼%s┤\n",
+		strings.Repeat("─", nameW+2),
+		strings.Repeat("─", useW+2),
+		strings.Repeat("─", statusW+2),
+	)
+}
+
+func tableBottom3(nameW, useW, statusW int) string {
+	return fmt.Sprintf("└%s┴%s┴%s┘",
+		strings.Repeat("─", nameW+2),
+		strings.Repeat("─", useW+2),
+		strings.Repeat("─", statusW+2),
+	)
+}
+
+func tableRow3(nameW, useW, statusW int, cols []string) string {
+	name := padRight(cols[0], nameW)
+	use := padLeft(cols[1], useW)
+	status := padRight(cols[2], statusW)
+	return fmt.Sprintf("│ %s │ %s │ %s │\n", name, use, status)
+}
+
 func tableTop(mountW, useW, statusW, sizeW int) string {
 	return fmt.Sprintf("┌%s┬%s┬%s┬%s┐\n",
 		strings.Repeat("─", mountW+2),
@@ -223,18 +296,18 @@ func padRight(value string, width int) string {
 	if width <= 0 {
 		return value
 	}
-	if runeLen(value) >= width {
+	if displayWidth(value) >= width {
 		return value
 	}
-	return value + strings.Repeat(" ", width-runeLen(value))
+	return value + strings.Repeat(" ", width-displayWidth(value))
 }
 
 func padLeft(value string, width int) string {
 	if width <= 0 {
 		return value
 	}
-	if runeLen(value) >= width {
+	if displayWidth(value) >= width {
 		return value
 	}
-	return strings.Repeat(" ", width-runeLen(value)) + value
+	return strings.Repeat(" ", width-displayWidth(value)) + value
 }
