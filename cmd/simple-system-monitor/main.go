@@ -19,6 +19,7 @@ import (
 	"github.com/zergo0/simple-system-monitor/internal/alerts"
 	"github.com/zergo0/simple-system-monitor/internal/config"
 	"github.com/zergo0/simple-system-monitor/internal/monitor"
+	"github.com/zergo0/simple-system-monitor/internal/render"
 	"github.com/zergo0/simple-system-monitor/internal/telegram"
 )
 
@@ -140,7 +141,12 @@ func runOnce(ctx context.Context, logger *zap.Logger, telegramClient *telegram.C
 	)
 
 	if sendTelegramMetrics && telegramClient != nil {
-		if err := telegramClient.SendHTMLMessage(ctx, monitor.FormatMetricsHTML(metrics)); err != nil {
+		header := formatMetricsHeaderHTML(metrics)
+		text := monitor.FormatMetricsText(metrics)
+		imageBytes, err := render.TextPNG(text)
+		if err != nil {
+			logger.Warn("telegram metrics render failed", zap.Error(err))
+		} else if err := telegramClient.SendPNGWithCaption(ctx, "metrics.png", imageBytes, header, "HTML"); err != nil {
 			logger.Warn("telegram metrics send failed", zap.Error(err))
 		}
 	}
@@ -156,8 +162,12 @@ func runOnce(ctx context.Context, logger *zap.Logger, telegramClient *telegram.C
 	if len(alertsList) > 0 {
 		logger.Warn("alerts triggered", zap.String("hostname", metrics.Hostname), zap.Strings("alerts", alertsList))
 		if telegramClient != nil {
-			alertText := formatAlertHTML(metrics.Hostname, alertsList)
-			if err := telegramClient.SendHTMLMessage(ctx, alertText); err != nil {
+			header := formatAlertHeaderHTML(metrics.Hostname)
+			alertText := formatAlertBodyText(alertsList)
+			imageBytes, err := render.TextPNG(alertText)
+			if err != nil {
+				logger.Warn("telegram alert render failed", zap.Error(err))
+			} else if err := telegramClient.SendPNGWithCaption(ctx, "alert.png", imageBytes, header, "HTML"); err != nil {
 				logger.Warn("telegram alert send failed", zap.Error(err))
 			}
 		}
@@ -166,17 +176,26 @@ func runOnce(ctx context.Context, logger *zap.Logger, telegramClient *telegram.C
 	return nil
 }
 
-func formatAlertHTML(hostname string, alertsList []string) string {
-	var b strings.Builder
-	_, _ = b.WriteString("<b>🚨 ALERT</b> ")
-	_, _ = b.WriteString(html.EscapeString(hostname))
-	if len(alertsList) == 0 {
-		return b.String()
+func formatMetricsHeaderHTML(metrics monitor.Metrics) string {
+	headerText := monitor.FormatMetricsHeaderText(metrics)
+	return "<b>" + html.EscapeString(headerText) + "</b>"
+}
+
+func formatAlertHeaderHTML(hostname string) string {
+	host := monitor.CleanText(hostname)
+	headerText := "🚨 ALERT"
+	if host != "" {
+		headerText = fmt.Sprintf("%s - %s", headerText, host)
 	}
-	b.WriteString("\n<pre>\n")
-	_, _ = b.WriteString(html.EscapeString(strings.Join(alertsList, "\n")))
-	b.WriteString("\n</pre>")
-	return b.String()
+	return "<b>" + html.EscapeString(headerText) + "</b>"
+}
+
+func formatAlertBodyText(alertsList []string) string {
+	lines := make([]string, 0, len(alertsList))
+	for _, alert := range alertsList {
+		lines = append(lines, monitor.CleanText(alert))
+	}
+	return strings.Join(lines, "\n")
 }
 
 func signalList() []os.Signal {

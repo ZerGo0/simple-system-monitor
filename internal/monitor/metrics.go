@@ -85,7 +85,7 @@ func FormatMetricsHTML(metrics Metrics) string {
 	host := html.EscapeString(metrics.Hostname)
 	_, _ = fmt.Fprintf(&b, "<b>Simple System Monitor</b>\n<i>%s</i>", host)
 
-	metricHeader := []string{"Metric", "Use", "St"}
+	metricHeader := []string{"Metric", "Usage", "St"}
 	metricRows := [][]string{
 		{"CPU", fmt.Sprintf("%.1f%%", metrics.CPUPercent), statusEmoji(metrics.CPUPercent)},
 		{"MEM", fmt.Sprintf("%.1f%%", metrics.MemPercent), statusEmoji(metrics.MemPercent)},
@@ -101,7 +101,7 @@ func FormatMetricsHTML(metrics Metrics) string {
 	metricStatusWidth = maxInt(metricStatusWidth, 2)
 
 	maxMount := maxMountWidth(metrics.Disks, 24)
-	diskHeader := []string{"Mount", "Use", "St", "Used/Total"}
+	diskHeader := []string{"Mount", "Usage", "St", "Used/Total"}
 	diskRows := make([][]string, 0, len(metrics.Disks))
 	mountWidth := displayWidth(diskHeader[0])
 	useWidth := displayWidth(diskHeader[1])
@@ -156,6 +156,45 @@ func FormatMetricsHTML(metrics Metrics) string {
 	return b.String()
 }
 
+func FormatMetricsHeaderText(metrics Metrics) string {
+	host := CleanText(metrics.Hostname)
+	if host == "" {
+		return "Simple System Monitor"
+	}
+	return fmt.Sprintf("Simple System Monitor - %s", host)
+}
+
+func FormatMetricsText(metrics Metrics) string {
+	lines := []string{}
+
+	metricHeader := []string{"Metric", "Usage", "Status"}
+	metricRows := [][]string{
+		{"CPU", fmt.Sprintf("%.1f%%", metrics.CPUPercent), statusLabel(metrics.CPUPercent)},
+		{"MEM", fmt.Sprintf("%.1f%%", metrics.MemPercent), statusLabel(metrics.MemPercent)},
+	}
+	lines = append(lines, formatTableLines(metricHeader, metricRows, []bool{false, true, false})...)
+	lines = append(lines, "", "Disk")
+	if len(metrics.Disks) == 0 {
+		lines = append(lines, "none")
+		return strings.Join(lines, "\n")
+	}
+
+	maxMount := maxMountWidth(metrics.Disks, 24)
+	diskHeader := []string{"Mount", "Usage", "Status", "Used/Total"}
+	diskRows := make([][]string, 0, len(metrics.Disks))
+	for _, d := range metrics.Disks {
+		totalGiB := bytesToGiB(d.TotalBytes)
+		usedGiB := bytesToGiB(d.UsedBytes)
+		mount := formatMountPlain(CleanText(d.Mountpoint), maxMount)
+		use := fmt.Sprintf("%.1f%%", d.UsedPercent)
+		status := statusLabel(d.UsedPercent)
+		size := fmt.Sprintf("%.1f/%.1fGiB", usedGiB, totalGiB)
+		diskRows = append(diskRows, []string{mount, use, status, size})
+	}
+	lines = append(lines, formatTableLines(diskHeader, diskRows, []bool{false, true, false, true})...)
+	return strings.Join(lines, "\n")
+}
+
 func bytesToGiB(value uint64) float64 {
 	return float64(value) / (1024 * 1024 * 1024)
 }
@@ -168,6 +207,17 @@ func statusEmoji(percent float64) string {
 		return "🟨"
 	default:
 		return "🟩"
+	}
+}
+
+func statusLabel(percent float64) string {
+	switch {
+	case percent >= 90:
+		return "ALERT"
+	case percent >= 75:
+		return "WARN"
+	default:
+		return "OK"
 	}
 }
 
@@ -185,13 +235,22 @@ func maxMountWidth(disks []DiskUsage, max int) int {
 }
 
 func formatMount(mount string, width int) string {
+	return formatMountEllipsis(mount, width, "…")
+}
+
+func formatMountPlain(mount string, width int) string {
+	return formatMountEllipsis(mount, width, "...")
+}
+
+func formatMountEllipsis(mount string, width int, ellipsis string) string {
 	if width <= 0 || runeLen(mount) <= width {
 		return mount
 	}
-	if width <= 3 {
+	ellipsisLen := runeLen(ellipsis)
+	if width <= ellipsisLen {
 		return string([]rune(mount)[:width])
 	}
-	return string([]rune(mount)[:width-1]) + "…"
+	return string([]rune(mount)[:width-ellipsisLen]) + ellipsis
 }
 
 func runeLen(value string) int {
@@ -211,6 +270,13 @@ func displayWidth(value string) int {
 		width += runeDisplayWidth(r)
 	}
 	return width
+}
+
+func CleanText(value string) string {
+	value = strings.ReplaceAll(value, "\r", " ")
+	value = strings.ReplaceAll(value, "\n", " ")
+	value = strings.ReplaceAll(value, "\t", " ")
+	return value
 }
 
 func runeDisplayWidth(r rune) int {
@@ -290,6 +356,45 @@ func tableRow(mountW, useW, statusW, sizeW int, cols []string) string {
 	status := padRight(cols[2], statusW)
 	size := padRight(cols[3], sizeW)
 	return fmt.Sprintf("│ %s │ %s │ %s │ %s │\n", mount, use, status, size)
+}
+
+func formatTableLines(header []string, rows [][]string, rightAlign []bool) []string {
+	widths := make([]int, len(header))
+	for i, h := range header {
+		widths[i] = displayWidth(h)
+	}
+	for _, row := range rows {
+		for i, col := range row {
+			widths[i] = maxInt(widths[i], displayWidth(col))
+		}
+	}
+	lines := make([]string, 0, len(rows)+2)
+	lines = append(lines, formatRowLine(header, widths, rightAlign))
+	lines = append(lines, formatSepLine(widths))
+	for _, row := range rows {
+		lines = append(lines, formatRowLine(row, widths, rightAlign))
+	}
+	return lines
+}
+
+func formatRowLine(cols []string, widths []int, rightAlign []bool) string {
+	parts := make([]string, len(cols))
+	for i, col := range cols {
+		if i < len(rightAlign) && rightAlign[i] {
+			parts[i] = padLeft(col, widths[i])
+		} else {
+			parts[i] = padRight(col, widths[i])
+		}
+	}
+	return strings.Join(parts, "  ")
+}
+
+func formatSepLine(widths []int) string {
+	parts := make([]string, len(widths))
+	for i, width := range widths {
+		parts[i] = strings.Repeat("-", width)
+	}
+	return strings.Join(parts, "  ")
 }
 
 func padRight(value string, width int) string {

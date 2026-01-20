@@ -1,10 +1,13 @@
 package telegram
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"strings"
 	"time"
@@ -49,6 +52,62 @@ func NewWithBaseURL(token string, chatID string, baseURL string, httpClient *htt
 
 func (c *Client) SendHTMLMessage(ctx context.Context, text string) error {
 	return c.send(ctx, text, "HTML")
+}
+
+func (c *Client) SendPNG(ctx context.Context, filename string, data []byte) error {
+	return c.SendPNGWithCaption(ctx, filename, data, "", "")
+}
+
+func (c *Client) SendPNGWithCaption(ctx context.Context, filename string, data []byte, caption string, parseMode string) error {
+	if c == nil {
+		return errors.New("telegram client not configured")
+	}
+	if filename == "" {
+		filename = "message.png"
+	}
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	if err := writer.WriteField("chat_id", c.chatID); err != nil {
+		return err
+	}
+	if caption != "" {
+		if err := writer.WriteField("caption", caption); err != nil {
+			return err
+		}
+		if parseMode != "" {
+			if err := writer.WriteField("parse_mode", parseMode); err != nil {
+				return err
+			}
+		}
+	}
+	part, err := writer.CreateFormFile("photo", filename)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(part, bytes.NewReader(data)); err != nil {
+		return err
+	}
+	if err := writer.Close(); err != nil {
+		return err
+	}
+
+	url := fmt.Sprintf("%s/bot%s/sendPhoto", strings.TrimRight(c.baseURL, "/"), c.token)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, &buf)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("telegram API status %d", resp.StatusCode)
+	}
+	return nil
 }
 
 func (c *Client) send(ctx context.Context, text string, parseMode string) error {
