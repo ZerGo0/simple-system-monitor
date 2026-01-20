@@ -2,6 +2,10 @@
 
 Simple System Monitor: lightweight system monitoring tool with Telegram alerts.
 
+## Preview:
+
+![Preview](./docs/preview.png)
+
 ## Requirements
 - Go
 - Telegram bot token + chat ID
