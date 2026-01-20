@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"html"
-	"math"
 	"strings"
 	"time"
 
@@ -84,8 +83,8 @@ func FormatMetricsHTML(metrics Metrics) string {
 	var b strings.Builder
 	host := html.EscapeString(metrics.Hostname)
 	_, _ = fmt.Fprintf(&b, "<b>Simple System Monitor</b>\n<i>%s</i>\n\n", host)
-	_, _ = fmt.Fprintf(&b, "<b>CPU</b>  %.1f%% %s %s\n", metrics.CPUPercent, statusEmoji(metrics.CPUPercent), bar(metrics.CPUPercent, 12))
-	_, _ = fmt.Fprintf(&b, "<b>MEM</b>  %.1f%% %s %s\n", metrics.MemPercent, statusEmoji(metrics.MemPercent), bar(metrics.MemPercent, 12))
+	_, _ = fmt.Fprintf(&b, "<b>CPU</b>  %.1f%% %s\n", metrics.CPUPercent, statusEmoji(metrics.CPUPercent))
+	_, _ = fmt.Fprintf(&b, "<b>MEM</b>  %.1f%% %s\n", metrics.MemPercent, statusEmoji(metrics.MemPercent))
 	b.WriteString("\n<b>Disk</b>")
 	if len(metrics.Disks) == 0 {
 		b.WriteString("\n<pre>none</pre>")
@@ -97,7 +96,7 @@ func FormatMetricsHTML(metrics Metrics) string {
 		totalGiB := bytesToGiB(d.TotalBytes)
 		usedGiB := bytesToGiB(d.UsedBytes)
 		mount := html.EscapeString(d.Mountpoint)
-		_, _ = fmt.Fprintf(&b, "%-16s %5.1f%% %s %s %5.1f/%-5.1fGiB", mount, d.UsedPercent, statusEmoji(d.UsedPercent), bar(d.UsedPercent, 10), usedGiB, totalGiB)
+		_, _ = fmt.Fprintf(&b, "%-16s %5.1f%% %s %5.1f/%-5.1fGiB", mount, d.UsedPercent, statusEmoji(d.UsedPercent), usedGiB, totalGiB)
 		if i < len(metrics.Disks)-1 {
 			b.WriteString("\n")
 		}
@@ -119,24 +118,4 @@ func statusEmoji(percent float64) string {
 	default:
 		return "🟩"
 	}
-}
-
-func bar(percent float64, width int) string {
-	if width <= 0 {
-		return ""
-	}
-	if percent < 0 {
-		percent = 0
-	}
-	if percent > 100 {
-		percent = 100
-	}
-	filled := int(math.Round((percent / 100) * float64(width)))
-	if filled < 0 {
-		filled = 0
-	}
-	if filled > width {
-		filled = width
-	}
-	return "[" + strings.Repeat("=", filled) + strings.Repeat("-", width-filled) + "]"
 }
