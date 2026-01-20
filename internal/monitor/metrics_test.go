@@ -14,15 +14,15 @@ func TestFormatMount(t *testing.T) {
 	}
 }
 
-func TestTableRowWidth(t *testing.T) {
-	row := tableRow(4, 4, 2, 6, []string{"mnt", "1.0%", "🟩", "1/2GiB"})
+func TestTableRow2Width(t *testing.T) {
+	row := tableRow2(5, 6, []string{"Mount", "1/2GiB"})
 	if len(row) == 0 || !strings.HasPrefix(row, "│") {
 		t.Fatalf("expected table row formatting")
 	}
 }
 
 func TestTableRow3Width(t *testing.T) {
-	row := tableRow3(5, 4, 2, []string{"CPU", "1.0%", "🟩"})
+	row := tableRow3(5, 4, 2, []string{"CPU", "1.0%", "OK"})
 	if len(row) == 0 || !strings.HasPrefix(row, "│") {
 		t.Fatalf("expected table row formatting")
 	}
