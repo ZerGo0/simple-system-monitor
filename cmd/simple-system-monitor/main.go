@@ -20,7 +20,7 @@ import (
 )
 
 func main() {
-	logger, _ := zap.NewProduction()
+	logger, _ := zap.NewDevelopment()
 	defer func() {
 		_ = logger.Sync()
 	}()

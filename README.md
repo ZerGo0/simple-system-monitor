@@ -33,8 +33,6 @@ export MOUNT_INCLUDE="/,/boot/efi,/media/usb3"
 go run ./cmd/simple-system-monitor -interval 1m -telegram-interval 168h -mount-include "/,/boot/efi,/media/usb3" -cpu-threshold 85 -mem-threshold 90 -disk-threshold 92
 ```
 
-Logs emit every interval. Telegram metrics send at startup and then every telegram interval. Alerts send immediately when thresholds are exceeded.
-
 ## Build (cross-platform)
 ```bash
 GOOS=linux GOARCH=amd64 go build -o simple-system-monitor ./cmd/simple-system-monitor
