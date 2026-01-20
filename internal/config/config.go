@@ -13,7 +13,7 @@ type Config struct {
 	TelegramChatID   string
 	SystemName       string
 	LogInterval      time.Duration
-	TelegramInterval time.Duration
+	TelegramSchedule string
 	CPUThreshold     float64
 	CPUAlertWindow   time.Duration
 	MemThreshold     float64
@@ -38,7 +38,7 @@ func LoadFrom(fs *flag.FlagSet, getenv func(string) string, args []string) Confi
 	}
 
 	defaultLogInterval := envDuration(getenv, "INTERVAL", time.Minute)
-	defaultTelegramInterval := envDuration(getenv, "TELEGRAM_INTERVAL", 7*24*time.Hour)
+	defaultTelegramSchedule := envString(getenv, "TELEGRAM_SCHEDULE", "0 12 * * 0")
 	defaultCPU := envFloat(getenv, "CPU_THRESHOLD", 90)
 	defaultCPUWindow := envDuration(getenv, "CPU_ALERT_WINDOW", 5*time.Minute)
 	defaultMem := envFloat(getenv, "MEM_THRESHOLD", 90)
@@ -53,7 +53,7 @@ func LoadFrom(fs *flag.FlagSet, getenv func(string) string, args []string) Confi
 	defaultFstypeExclude := envString(getenv, "FSTYPE_EXCLUDE", "tmpfs,devtmpfs,overlay,proc,sysfs,devpts,cgroup,cgroup2,pstore,securityfs,debugfs,tracefs,configfs,ramfs,hugetlbfs,mqueue,autofs,binfmt_misc,fusectl,efivarfs")
 
 	logInterval := fs.Duration("interval", defaultLogInterval, "metrics log interval")
-	telegramInterval := fs.Duration("telegram-interval", defaultTelegramInterval, "telegram metrics interval")
+	telegramSchedule := fs.String("telegram-schedule", defaultTelegramSchedule, "telegram metrics cron schedule (UTC)")
 	cpuThreshold := fs.Float64("cpu-threshold", defaultCPU, "cpu usage percent threshold")
 	cpuAlertWindow := fs.Duration("cpu-alert-window", defaultCPUWindow, "cpu threshold window before alert")
 	memThreshold := fs.Float64("mem-threshold", defaultMem, "memory usage percent threshold")
@@ -76,7 +76,7 @@ func LoadFrom(fs *flag.FlagSet, getenv func(string) string, args []string) Confi
 		TelegramChatID:   *telegramChatID,
 		SystemName:       strings.TrimSpace(*systemName),
 		LogInterval:      *logInterval,
-		TelegramInterval: *telegramInterval,
+		TelegramSchedule: strings.TrimSpace(*telegramSchedule),
 		CPUThreshold:     clampPercent(*cpuThreshold),
 		CPUAlertWindow:   *cpuAlertWindow,
 		MemThreshold:     clampPercent(*memThreshold),

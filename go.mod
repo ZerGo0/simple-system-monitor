@@ -4,6 +4,7 @@ go 1.25.6
 
 require (
 	github.com/joho/godotenv v1.5.1
+	github.com/robfig/cron/v3 v3.0.1
 	github.com/shirou/gopsutil/v4 v4.25.12
 	go.uber.org/zap v1.27.1
 )

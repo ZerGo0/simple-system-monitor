@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
 
 	"github.com/zergo0/simple-system-monitor/internal/alerts"
@@ -69,21 +70,31 @@ func main() {
 		logger.Warn("telegram disabled: missing token or chat id")
 	}
 
-	sendTelegramMetrics := telegramClient != nil && cfg.TelegramInterval > 0
-	if telegramClient != nil && cfg.TelegramInterval <= 0 {
-		logger.Warn("telegram metrics disabled: interval <= 0", zap.Duration("telegram_interval", cfg.TelegramInterval))
+	sendTelegramAtStart := telegramClient != nil
+	var telegramSchedule cron.Schedule
+	if telegramClient != nil {
+		if cfg.TelegramSchedule == "" {
+			logger.Warn("telegram schedule disabled: empty schedule")
+		} else {
+			schedule, err := cron.ParseStandard(cfg.TelegramSchedule)
+			if err != nil {
+				logger.Warn("telegram schedule invalid", zap.String("schedule", cfg.TelegramSchedule), zap.Error(err))
+			} else {
+				telegramSchedule = schedule
+			}
+		}
 	}
 
 	alertState := alerts.NewState()
 
 	now := time.Now()
-	if err := runOnce(ctx, logger, telegramClient, displayName, cfg, alertState, now, sendTelegramMetrics); err != nil {
+	if err := runOnce(ctx, logger, telegramClient, displayName, cfg, alertState, now, sendTelegramAtStart); err != nil {
 		logger.Error("initial run failed", zap.Error(err))
 	}
 
 	nextTelegramAt := time.Time{}
-	if sendTelegramMetrics {
-		nextTelegramAt = time.Now().Add(cfg.TelegramInterval)
+	if telegramSchedule != nil {
+		nextTelegramAt = telegramSchedule.Next(time.Now().UTC())
 	}
 
 	ticker := time.NewTicker(cfg.LogInterval)
@@ -97,9 +108,12 @@ func main() {
 		case <-ticker.C:
 			now = time.Now()
 			sendNow := false
-			if sendTelegramMetrics && now.After(nextTelegramAt) {
-				sendNow = true
-				nextTelegramAt = now.Add(cfg.TelegramInterval)
+			if telegramSchedule != nil {
+				nowUTC := now.UTC()
+				if !nowUTC.Before(nextTelegramAt) {
+					sendNow = true
+					nextTelegramAt = telegramSchedule.Next(nowUTC)
+				}
 			}
 			if err := runOnce(ctx, logger, telegramClient, displayName, cfg, alertState, now, sendNow); err != nil {
 				logger.Error("run failed", zap.Error(err))

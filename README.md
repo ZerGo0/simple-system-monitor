@@ -17,7 +17,7 @@ Environment variables or flags:
 - `TELEGRAM_CHAT_ID` / `-telegram-chat-id`
 - `SYSTEM_NAME` / `-system-name` (override hostname in messages)
 - `INTERVAL` / `-interval` (log interval, default `1m`)
-- `TELEGRAM_INTERVAL` / `-telegram-interval` (metrics send interval, default `168h`)
+- `TELEGRAM_SCHEDULE` / `-telegram-schedule` (cron schedule in UTC, default `0 12 * * 0` — Sundays at 12:00 UTC). Format: `min hour dom mon dow`
 - `MOUNT_INCLUDE` / `-mount-include` (comma list; only these mounts monitored)
 - `MOUNT_EXCLUDE` / `-mount-exclude` (comma list, supports `*` suffix; default `/dev*,/proc*,/sys*,/run*`)
 - `FSTYPE_EXCLUDE` / `-fstype-exclude` (comma list; default excludes tmpfs/devtmpfs/etc)
@@ -32,10 +32,8 @@ Environment variables or flags:
 ```bash
 export TELEGRAM_BOT_TOKEN="<token>"
 export TELEGRAM_CHAT_ID="<chat-id>"
-export TELEGRAM_INTERVAL="168h"
-export MOUNT_INCLUDE="/,/boot/efi,/media/usb3"
 
-go run ./cmd/simple-system-monitor -interval 1m -telegram-interval 168h -mount-include "/,/boot/efi,/media/usb3" -cpu-threshold 85 -mem-threshold 90 -disk-threshold 92
+go run ./cmd/simple-system-monitor
 ```
 
 ## Build (cross-platform)

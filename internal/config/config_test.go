@@ -15,8 +15,8 @@ func TestLoadFromDefaults(t *testing.T) {
 	if cfg.LogInterval != time.Minute {
 		t.Fatalf("expected log interval 1m, got %s", cfg.LogInterval)
 	}
-	if cfg.TelegramInterval != 7*24*time.Hour {
-		t.Fatalf("expected telegram interval 168h, got %s", cfg.TelegramInterval)
+	if cfg.TelegramSchedule != "0 12 * * 0" {
+		t.Fatalf("expected telegram schedule default, got %s", cfg.TelegramSchedule)
 	}
 	if cfg.CPUThreshold != 90 {
 		t.Fatalf("expected cpu threshold 90, got %.1f", cfg.CPUThreshold)
@@ -50,11 +50,15 @@ func TestLoadFromEnvAndArgs(t *testing.T) {
 		"FSTYPE_EXCLUDE":     "TmpFS,PROC",
 		"TELEGRAM_BOT_TOKEN": "token",
 		"TELEGRAM_CHAT_ID":   "chat",
+		"TELEGRAM_SCHEDULE":  "0 12 * * 1",
 	}
 	cfg := LoadFrom(fs, func(key string) string { return env[key] }, []string{"-interval", "30s"})
 
 	if cfg.LogInterval != 30*time.Second {
 		t.Fatalf("expected log interval 30s, got %s", cfg.LogInterval)
+	}
+	if cfg.TelegramSchedule != "0 12 * * 1" {
+		t.Fatalf("expected telegram schedule from env, got %s", cfg.TelegramSchedule)
 	}
 	if cfg.CPUThreshold != 100 {
 		t.Fatalf("expected cpu threshold clamped to 100, got %.1f", cfg.CPUThreshold)
