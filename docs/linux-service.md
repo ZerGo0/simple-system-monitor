@@ -77,22 +77,3 @@ Replace `/usr/local/bin/simple-system-monitor` with the new release and restart:
 ```bash
 sudo systemctl restart simple-system-monitor
 ```
-
-## Migrating from the static service user
-
-Older versions of this guide created a `simple-system-monitor` user and `/opt/simple-system-monitor/.env`. To move such an install to `DynamicUser`:
-
-```bash
-sudo install -m 0600 -o root -g root /opt/simple-system-monitor/.env /etc/simple-system-monitor.env
-```
-
-Replace the unit with the one in step 3, then remove the static user. systemd reuses an existing user with the unit's name, so delete it while the service is stopped:
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl stop simple-system-monitor
-sudo userdel simple-system-monitor
-sudo groupdel simple-system-monitor 2>/dev/null || true
-sudo rm -rf /opt/simple-system-monitor
-sudo systemctl start simple-system-monitor
-```
