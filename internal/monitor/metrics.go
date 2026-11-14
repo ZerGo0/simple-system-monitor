@@ -36,8 +36,12 @@ type DiskUsage struct {
 type Metrics struct {
 	Hostname       string      `json:"hostname"`
 	CPUPercent     float64     `json:"cpu_percent"`
+	CPUCores       int         `json:"cpu_cores"`
 	MemPercent     float64     `json:"mem_percent"`
+	MemUsedBytes   uint64      `json:"mem_used_bytes"`
+	MemTotalBytes  uint64      `json:"mem_total_bytes"`
 	SwapPercent    float64     `json:"swap_percent"`
+	SwapUsedBytes  uint64      `json:"swap_used_bytes"`
 	SwapTotalBytes uint64      `json:"swap_total_bytes"`
 	Disks          []DiskUsage `json:"disks"`
 }
@@ -46,6 +50,10 @@ func Collect(ctx context.Context, logger *zap.Logger, hostname string, filter Fi
 	cpuPercent, err := collectCPUPercent(ctx)
 	if err != nil {
 		return Metrics{}, err
+	}
+	cpuCores, err := cpu.CountsWithContext(ctx, true)
+	if err != nil {
+		logger.Debug("cpu count failed", zap.Error(err))
 	}
 	memStats, err := mem.VirtualMemoryWithContext(ctx)
 	if err != nil {
@@ -82,8 +90,12 @@ func Collect(ctx context.Context, logger *zap.Logger, hostname string, filter Fi
 	return Metrics{
 		Hostname:       hostname,
 		CPUPercent:     cpuPercent,
+		CPUCores:       cpuCores,
 		MemPercent:     memStats.UsedPercent,
+		MemUsedBytes:   memStats.Used,
+		MemTotalBytes:  memStats.Total,
 		SwapPercent:    swapStats.UsedPercent,
+		SwapUsedBytes:  swapStats.Used,
 		SwapTotalBytes: swapStats.Total,
 		Disks:          disks,
 	}, nil
@@ -127,12 +139,10 @@ func FormatMetricsHTML(metrics Metrics) string {
 	sizeWidth := displayWidth(diskHeader[3])
 
 	for _, d := range metrics.Disks {
-		totalGiB := bytesToGiB(d.TotalBytes)
-		usedGiB := bytesToGiB(d.UsedBytes)
 		mount := formatMount(d.Mountpoint, maxMount)
 		use := fmt.Sprintf("%.1f%%", d.UsedPercent)
 		status := statusEmoji(d.UsedPercent)
-		size := fmt.Sprintf("%.1f/%.1fGiB", usedGiB, totalGiB)
+		size := formatUsedTotalGiB(d.UsedBytes, d.TotalBytes)
 
 		diskRows = append(diskRows, []string{mount, use, status, size})
 		mountWidth = maxInt(mountWidth, displayWidth(mount))
@@ -185,9 +195,9 @@ func FormatMetricsHeaderText(metrics Metrics) string {
 func FormatMetricsText(metrics Metrics) string {
 	lines := []string{}
 
-	metricHeader := []string{"Metric", "Usage", "Status"}
+	metricHeader := []string{"Metric", "Usage", "Status", "Used/Total"}
 	metricRows := buildMetricRows(metrics, statusLabel)
-	lines = append(lines, formatTableLines(metricHeader, metricRows, []bool{false, true, false})...)
+	lines = append(lines, formatTableLines(metricHeader, metricRows, []bool{false, true, false, true})...)
 	lines = append(lines, "", "Disk")
 	if len(metrics.Disks) == 0 {
 		lines = append(lines, "none")
@@ -198,12 +208,10 @@ func FormatMetricsText(metrics Metrics) string {
 	diskHeader := []string{"Mount", "Usage", "Status", "Used/Total"}
 	diskRows := make([][]string, 0, len(metrics.Disks))
 	for _, d := range metrics.Disks {
-		totalGiB := bytesToGiB(d.TotalBytes)
-		usedGiB := bytesToGiB(d.UsedBytes)
 		mount := formatMountPlain(CleanText(d.Mountpoint), maxMount)
 		use := fmt.Sprintf("%.1f%%", d.UsedPercent)
 		status := statusLabel(d.UsedPercent)
-		size := fmt.Sprintf("%.1f/%.1fGiB", usedGiB, totalGiB)
+		size := formatUsedTotalGiB(d.UsedBytes, d.TotalBytes)
 		diskRows = append(diskRows, []string{mount, use, status, size})
 	}
 	lines = append(lines, formatTableLines(diskHeader, diskRows, []bool{false, true, false, true})...)
@@ -212,13 +220,24 @@ func FormatMetricsText(metrics Metrics) string {
 
 func buildMetricRows(metrics Metrics, status func(float64) string) [][]string {
 	rows := [][]string{
-		{"CPU", fmt.Sprintf("%.1f%%", metrics.CPUPercent), status(metrics.CPUPercent)},
-		{"MEM", fmt.Sprintf("%.1f%%", metrics.MemPercent), status(metrics.MemPercent)},
+		{"CPU", fmt.Sprintf("%.1f%%", metrics.CPUPercent), status(metrics.CPUPercent), formatUsedTotalCores(metrics.CPUPercent, metrics.CPUCores)},
+		{"MEM", fmt.Sprintf("%.1f%%", metrics.MemPercent), status(metrics.MemPercent), formatUsedTotalGiB(metrics.MemUsedBytes, metrics.MemTotalBytes)},
 	}
 	if metrics.SwapTotalBytes > 0 {
-		rows = append(rows, []string{"SWAP", fmt.Sprintf("%.1f%%", metrics.SwapPercent), status(metrics.SwapPercent)})
+		rows = append(rows, []string{"SWAP", fmt.Sprintf("%.1f%%", metrics.SwapPercent), status(metrics.SwapPercent), formatUsedTotalGiB(metrics.SwapUsedBytes, metrics.SwapTotalBytes)})
 	}
 	return rows
+}
+
+func formatUsedTotalCores(percent float64, cores int) string {
+	if cores <= 0 {
+		return "-"
+	}
+	return fmt.Sprintf("%.1f/%d cores", percent/100*float64(cores), cores)
+}
+
+func formatUsedTotalGiB(used, total uint64) string {
+	return fmt.Sprintf("%.1f/%.1fGiB", bytesToGiB(used), bytesToGiB(total))
 }
 
 func bytesToGiB(value uint64) float64 {
