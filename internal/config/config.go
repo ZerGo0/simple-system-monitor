@@ -18,6 +18,8 @@ type Config struct {
 	CPUAlertWindow   time.Duration
 	MemThreshold     float64
 	MemAlertWindow   time.Duration
+	SwapThreshold    float64
+	SwapAlertWindow  time.Duration
 	DiskThreshold    float64
 	DiskAlertWindow  time.Duration
 	MountInclude     []string
@@ -43,6 +45,8 @@ func LoadFrom(fs *flag.FlagSet, getenv func(string) string, args []string) Confi
 	defaultCPUWindow := envDuration(getenv, "CPU_ALERT_WINDOW", 5*time.Minute)
 	defaultMem := envFloat(getenv, "MEM_THRESHOLD", 90)
 	defaultMemWindow := envDuration(getenv, "MEM_ALERT_WINDOW", 5*time.Minute)
+	defaultSwap := envFloat(getenv, "SWAP_THRESHOLD", 90)
+	defaultSwapWindow := envDuration(getenv, "SWAP_ALERT_WINDOW", 5*time.Minute)
 	defaultDisk := envFloat(getenv, "DISK_THRESHOLD", 90)
 	defaultDiskWindow := envDuration(getenv, "DISK_ALERT_WINDOW", 5*time.Minute)
 	defaultToken := envString(getenv, "TELEGRAM_BOT_TOKEN", "")
@@ -58,6 +62,8 @@ func LoadFrom(fs *flag.FlagSet, getenv func(string) string, args []string) Confi
 	cpuAlertWindow := fs.Duration("cpu-alert-window", defaultCPUWindow, "cpu threshold window before alert")
 	memThreshold := fs.Float64("mem-threshold", defaultMem, "memory usage percent threshold")
 	memAlertWindow := fs.Duration("mem-alert-window", defaultMemWindow, "memory threshold window before alert")
+	swapThreshold := fs.Float64("swap-threshold", defaultSwap, "swap usage percent threshold")
+	swapAlertWindow := fs.Duration("swap-alert-window", defaultSwapWindow, "swap threshold window before alert")
 	diskThreshold := fs.Float64("disk-threshold", defaultDisk, "disk usage percent threshold")
 	diskAlertWindow := fs.Duration("disk-alert-window", defaultDiskWindow, "disk threshold window before alert")
 	telegramToken := fs.String("telegram-token", defaultToken, "telegram bot token")
@@ -81,6 +87,8 @@ func LoadFrom(fs *flag.FlagSet, getenv func(string) string, args []string) Confi
 		CPUAlertWindow:   *cpuAlertWindow,
 		MemThreshold:     clampPercent(*memThreshold),
 		MemAlertWindow:   *memAlertWindow,
+		SwapThreshold:    clampPercent(*swapThreshold),
+		SwapAlertWindow:  *swapAlertWindow,
 		DiskThreshold:    clampPercent(*diskThreshold),
 		DiskAlertWindow:  *diskAlertWindow,
 		MountInclude:     parseList(*mountInclude),

@@ -52,6 +52,29 @@ func TestMemAlertWindow(t *testing.T) {
 	}
 }
 
+func TestSwapAlertWindow(t *testing.T) {
+	state := NewState()
+	cfg := Thresholds{SwapThreshold: 50, SwapAlertWindow: 2 * time.Minute}
+	metrics := monitor.Metrics{SwapPercent: 60, SwapTotalBytes: 1 << 30}
+
+	start := time.Now()
+	alerts := Check(metrics, cfg, state, start)
+	if len(alerts) != 0 {
+		t.Fatalf("expected no alert before window")
+	}
+
+	alerts = Check(metrics, cfg, state, start.Add(2*time.Minute))
+	if len(alerts) != 1 {
+		t.Fatalf("expected alert after window")
+	}
+
+	metrics.SwapPercent = 10
+	alerts = Check(metrics, cfg, state, start.Add(3*time.Minute))
+	if len(alerts) != 0 {
+		t.Fatalf("expected no alert after reset")
+	}
+}
+
 func TestDiskAlertWindow(t *testing.T) {
 	state := NewState()
 	cfg := Thresholds{DiskThreshold: 80, DiskAlertWindow: 3 * time.Minute}

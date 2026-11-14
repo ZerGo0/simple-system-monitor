@@ -16,7 +16,7 @@ Environment variables or flags:
 - `TELEGRAM_BOT_TOKEN` / `-telegram-token`
 - `TELEGRAM_CHAT_ID` / `-telegram-chat-id`
 - `SYSTEM_NAME` / `-system-name` (override hostname in messages)
-- `INTERVAL` / `-interval` (log interval, default `1m`)
+- `INTERVAL` / `-interval` (log interval, default `1m`; CPU usage is the average over each interval)
 - `TELEGRAM_SCHEDULE` / `-telegram-schedule` (cron schedule in UTC, default `0 12 * * 0` — Sundays at 12:00 UTC). Format: `min hour dom mon dow`
 - `MOUNT_INCLUDE` / `-mount-include` (comma list; only these mounts monitored)
 - `MOUNT_EXCLUDE` / `-mount-exclude` (comma list, supports `*` suffix; default `/dev*,/proc*,/sys*,/run*`)
@@ -25,6 +25,8 @@ Environment variables or flags:
 - `CPU_ALERT_WINDOW` / `-cpu-alert-window` (duration over threshold before alert, default `5m`)
 - `MEM_THRESHOLD` / `-mem-threshold` (percent, default `90`)
 - `MEM_ALERT_WINDOW` / `-mem-alert-window` (duration over threshold before alert, default `5m`)
+- `SWAP_THRESHOLD` / `-swap-threshold` (percent, default `90`; ignored when the system has no swap)
+- `SWAP_ALERT_WINDOW` / `-swap-alert-window` (duration over threshold before alert, default `5m`)
 - `DISK_THRESHOLD` / `-disk-threshold` (percent, default `90`)
 - `DISK_ALERT_WINDOW` / `-disk-alert-window` (duration over threshold before alert, default `5m`)
 

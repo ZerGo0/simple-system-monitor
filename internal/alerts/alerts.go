@@ -12,92 +12,70 @@ type Thresholds struct {
 	CPUAlertWindow  time.Duration
 	MemThreshold    float64
 	MemAlertWindow  time.Duration
+	SwapThreshold   float64
+	SwapAlertWindow time.Duration
 	DiskThreshold   float64
 	DiskAlertWindow time.Duration
 }
 
+type windowState struct {
+	aboveSince time.Time
+	alerting   bool
+}
+
+func (w *windowState) check(value, threshold float64, window time.Duration, now time.Time) bool {
+	if threshold <= 0 || value < threshold {
+		*w = windowState{}
+		return false
+	}
+	if w.aboveSince.IsZero() {
+		w.aboveSince = now
+	}
+	if w.alerting || now.Sub(w.aboveSince) < window {
+		return false
+	}
+	w.alerting = true
+	return true
+}
+
 type AlertState struct {
-	CPUAboveSince  time.Time
-	CPUAlerting    bool
-	MemAboveSince  time.Time
-	MemAlerting    bool
-	DiskAboveSince map[string]time.Time
-	DiskAlerting   map[string]bool
+	cpu  windowState
+	mem  windowState
+	swap windowState
+	disk map[string]*windowState
 }
 
 func NewState() *AlertState {
-	return &AlertState{
-		DiskAboveSince: make(map[string]time.Time),
-		DiskAlerting:   make(map[string]bool),
-	}
+	return &AlertState{disk: make(map[string]*windowState)}
 }
 
 func Check(metrics monitor.Metrics, cfg Thresholds, state *AlertState, now time.Time) []string {
 	alerts := []string{}
-	if cfg.CPUThreshold > 0 {
-		if metrics.CPUPercent >= cfg.CPUThreshold {
-			if state.CPUAboveSince.IsZero() {
-				state.CPUAboveSince = now
-			}
-			if !state.CPUAlerting && now.Sub(state.CPUAboveSince) >= cfg.CPUAlertWindow {
-				alerts = append(alerts, fmt.Sprintf("CPU %.1f%% >= %.1f%% for %s", metrics.CPUPercent, cfg.CPUThreshold, cfg.CPUAlertWindow))
-				state.CPUAlerting = true
-			}
-		} else if state.CPUAlerting || !state.CPUAboveSince.IsZero() {
-			state.CPUAlerting = false
-			state.CPUAboveSince = time.Time{}
+	if state.cpu.check(metrics.CPUPercent, cfg.CPUThreshold, cfg.CPUAlertWindow, now) {
+		alerts = append(alerts, fmt.Sprintf("CPU %.1f%% >= %.1f%% for %s", metrics.CPUPercent, cfg.CPUThreshold, cfg.CPUAlertWindow))
+	}
+	if state.mem.check(metrics.MemPercent, cfg.MemThreshold, cfg.MemAlertWindow, now) {
+		alerts = append(alerts, fmt.Sprintf("Memory %.1f%% >= %.1f%% for %s", metrics.MemPercent, cfg.MemThreshold, cfg.MemAlertWindow))
+	}
+	if state.swap.check(metrics.SwapPercent, cfg.SwapThreshold, cfg.SwapAlertWindow, now) {
+		alerts = append(alerts, fmt.Sprintf("Swap %.1f%% >= %.1f%% for %s", metrics.SwapPercent, cfg.SwapThreshold, cfg.SwapAlertWindow))
+	}
+	active := make(map[string]struct{}, len(metrics.Disks))
+	for _, d := range metrics.Disks {
+		active[d.Mountpoint] = struct{}{}
+		w, ok := state.disk[d.Mountpoint]
+		if !ok {
+			w = &windowState{}
+			state.disk[d.Mountpoint] = w
+		}
+		if w.check(d.UsedPercent, cfg.DiskThreshold, cfg.DiskAlertWindow, now) {
+			alerts = append(alerts, fmt.Sprintf("Disk %s %.1f%% >= %.1f%% for %s", d.Mountpoint, d.UsedPercent, cfg.DiskThreshold, cfg.DiskAlertWindow))
 		}
 	}
-	if cfg.MemThreshold > 0 {
-		if metrics.MemPercent >= cfg.MemThreshold {
-			if state.MemAboveSince.IsZero() {
-				state.MemAboveSince = now
-			}
-			if !state.MemAlerting && now.Sub(state.MemAboveSince) >= cfg.MemAlertWindow {
-				alerts = append(alerts, fmt.Sprintf("Memory %.1f%% >= %.1f%% for %s", metrics.MemPercent, cfg.MemThreshold, cfg.MemAlertWindow))
-				state.MemAlerting = true
-			}
-		} else if state.MemAlerting || !state.MemAboveSince.IsZero() {
-			state.MemAlerting = false
-			state.MemAboveSince = time.Time{}
+	for mount := range state.disk {
+		if _, ok := active[mount]; !ok {
+			delete(state.disk, mount)
 		}
-	}
-	if cfg.DiskThreshold > 0 {
-		for _, d := range metrics.Disks {
-			mount := d.Mountpoint
-			if d.UsedPercent >= cfg.DiskThreshold {
-				if _, ok := state.DiskAboveSince[mount]; !ok {
-					state.DiskAboveSince[mount] = now
-				}
-				if !state.DiskAlerting[mount] && now.Sub(state.DiskAboveSince[mount]) >= cfg.DiskAlertWindow {
-					alerts = append(alerts, fmt.Sprintf("Disk %s %.1f%% >= %.1f%% for %s", mount, d.UsedPercent, cfg.DiskThreshold, cfg.DiskAlertWindow))
-					state.DiskAlerting[mount] = true
-				}
-			} else {
-				if state.DiskAlerting[mount] || !state.DiskAboveSince[mount].IsZero() {
-					delete(state.DiskAlerting, mount)
-					delete(state.DiskAboveSince, mount)
-				}
-			}
-		}
-		pruneDiskState(state, metrics.Disks)
 	}
 	return alerts
-}
-
-func pruneDiskState(state *AlertState, disks []monitor.DiskUsage) {
-	active := make(map[string]struct{}, len(disks))
-	for _, d := range disks {
-		active[d.Mountpoint] = struct{}{}
-	}
-	for mount := range state.DiskAboveSince {
-		if _, ok := active[mount]; !ok {
-			delete(state.DiskAboveSince, mount)
-		}
-	}
-	for mount := range state.DiskAlerting {
-		if _, ok := active[mount]; !ok {
-			delete(state.DiskAlerting, mount)
-		}
-	}
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -13,6 +14,10 @@ import (
 	"github.com/shirou/gopsutil/v4/mem"
 	"go.uber.org/zap"
 )
+
+const initialCPUSampleInterval = time.Second
+
+var cpuBaseline sync.Once
 
 type FilterConfig struct {
 	MountInclude  []string
@@ -29,20 +34,27 @@ type DiskUsage struct {
 }
 
 type Metrics struct {
-	Hostname   string      `json:"hostname"`
-	CPUPercent float64     `json:"cpu_percent"`
-	MemPercent float64     `json:"mem_percent"`
-	Disks      []DiskUsage `json:"disks"`
+	Hostname       string      `json:"hostname"`
+	CPUPercent     float64     `json:"cpu_percent"`
+	MemPercent     float64     `json:"mem_percent"`
+	SwapPercent    float64     `json:"swap_percent"`
+	SwapTotalBytes uint64      `json:"swap_total_bytes"`
+	Disks          []DiskUsage `json:"disks"`
 }
 
 func Collect(ctx context.Context, logger *zap.Logger, hostname string, filter FilterConfig) (Metrics, error) {
-	cpuPercents, err := cpu.PercentWithContext(ctx, 200*time.Millisecond, false)
+	cpuPercent, err := collectCPUPercent(ctx)
 	if err != nil {
 		return Metrics{}, err
 	}
 	memStats, err := mem.VirtualMemoryWithContext(ctx)
 	if err != nil {
 		return Metrics{}, err
+	}
+	swapStats, err := mem.SwapMemoryWithContext(ctx)
+	if err != nil {
+		logger.Debug("swap usage failed", zap.Error(err))
+		swapStats = &mem.SwapMemoryStat{}
 	}
 	partitions, err := disk.PartitionsWithContext(ctx, true)
 	if err != nil {
@@ -67,17 +79,26 @@ func Collect(ctx context.Context, logger *zap.Logger, hostname string, filter Fi
 		})
 	}
 
-	cpuPercent := 0.0
-	if len(cpuPercents) > 0 {
-		cpuPercent = cpuPercents[0]
-	}
-
 	return Metrics{
-		Hostname:   hostname,
-		CPUPercent: cpuPercent,
-		MemPercent: memStats.UsedPercent,
-		Disks:      disks,
+		Hostname:       hostname,
+		CPUPercent:     cpuPercent,
+		MemPercent:     memStats.UsedPercent,
+		SwapPercent:    swapStats.UsedPercent,
+		SwapTotalBytes: swapStats.Total,
+		Disks:          disks,
 	}, nil
+}
+
+func collectCPUPercent(ctx context.Context) (float64, error) {
+	interval := time.Duration(0)
+	cpuBaseline.Do(func() {
+		interval = initialCPUSampleInterval
+	})
+	percents, err := cpu.PercentWithContext(ctx, interval, false)
+	if err != nil || len(percents) == 0 {
+		return 0, err
+	}
+	return percents[0], nil
 }
 
 func FormatMetricsHTML(metrics Metrics) string {
@@ -86,10 +107,7 @@ func FormatMetricsHTML(metrics Metrics) string {
 	_, _ = fmt.Fprintf(&b, "<b>Simple System Monitor</b>\n<i>%s</i>", host)
 
 	metricHeader := []string{"Metric", "Usage", "St"}
-	metricRows := [][]string{
-		{"CPU", fmt.Sprintf("%.1f%%", metrics.CPUPercent), statusEmoji(metrics.CPUPercent)},
-		{"MEM", fmt.Sprintf("%.1f%%", metrics.MemPercent), statusEmoji(metrics.MemPercent)},
-	}
+	metricRows := buildMetricRows(metrics, statusEmoji)
 	metricNameWidth := displayWidth(metricHeader[0])
 	metricUseWidth := displayWidth(metricHeader[1])
 	metricStatusWidth := displayWidth(metricHeader[2])
@@ -168,10 +186,7 @@ func FormatMetricsText(metrics Metrics) string {
 	lines := []string{}
 
 	metricHeader := []string{"Metric", "Usage", "Status"}
-	metricRows := [][]string{
-		{"CPU", fmt.Sprintf("%.1f%%", metrics.CPUPercent), statusLabel(metrics.CPUPercent)},
-		{"MEM", fmt.Sprintf("%.1f%%", metrics.MemPercent), statusLabel(metrics.MemPercent)},
-	}
+	metricRows := buildMetricRows(metrics, statusLabel)
 	lines = append(lines, formatTableLines(metricHeader, metricRows, []bool{false, true, false})...)
 	lines = append(lines, "", "Disk")
 	if len(metrics.Disks) == 0 {
@@ -193,6 +208,17 @@ func FormatMetricsText(metrics Metrics) string {
 	}
 	lines = append(lines, formatTableLines(diskHeader, diskRows, []bool{false, true, false, true})...)
 	return strings.Join(lines, "\n")
+}
+
+func buildMetricRows(metrics Metrics, status func(float64) string) [][]string {
+	rows := [][]string{
+		{"CPU", fmt.Sprintf("%.1f%%", metrics.CPUPercent), status(metrics.CPUPercent)},
+		{"MEM", fmt.Sprintf("%.1f%%", metrics.MemPercent), status(metrics.MemPercent)},
+	}
+	if metrics.SwapTotalBytes > 0 {
+		rows = append(rows, []string{"SWAP", fmt.Sprintf("%.1f%%", metrics.SwapPercent), status(metrics.SwapPercent)})
+	}
+	return rows
 }
 
 func bytesToGiB(value uint64) float64 {

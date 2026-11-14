@@ -46,6 +46,10 @@ func main() {
 		logger.Warn("mem alert window invalid, disabling delay", zap.Duration("mem_alert_window", cfg.MemAlertWindow))
 		cfg.MemAlertWindow = 0
 	}
+	if cfg.SwapAlertWindow < 0 {
+		logger.Warn("swap alert window invalid, disabling delay", zap.Duration("swap_alert_window", cfg.SwapAlertWindow))
+		cfg.SwapAlertWindow = 0
+	}
 	if cfg.DiskAlertWindow < 0 {
 		logger.Warn("disk alert window invalid, disabling delay", zap.Duration("disk_alert_window", cfg.DiskAlertWindow))
 		cfg.DiskAlertWindow = 0
@@ -137,6 +141,7 @@ func runOnce(ctx context.Context, logger *zap.Logger, telegramClient *telegram.C
 		zap.String("hostname", metrics.Hostname),
 		zap.Float64("cpu_percent", metrics.CPUPercent),
 		zap.Float64("mem_percent", metrics.MemPercent),
+		zap.Float64("swap_percent", metrics.SwapPercent),
 		zap.Any("disks", metrics.Disks),
 	)
 
@@ -156,6 +161,8 @@ func runOnce(ctx context.Context, logger *zap.Logger, telegramClient *telegram.C
 		CPUAlertWindow:  cfg.CPUAlertWindow,
 		MemThreshold:    cfg.MemThreshold,
 		MemAlertWindow:  cfg.MemAlertWindow,
+		SwapThreshold:   cfg.SwapThreshold,
+		SwapAlertWindow: cfg.SwapAlertWindow,
 		DiskThreshold:   cfg.DiskThreshold,
 		DiskAlertWindow: cfg.DiskAlertWindow,
 	}, alertState, now)

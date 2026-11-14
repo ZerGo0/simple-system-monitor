@@ -45,6 +45,8 @@ func TestLoadFromEnvAndArgs(t *testing.T) {
 		"CPU_THRESHOLD":      "200",
 		"CPU_ALERT_WINDOW":   "2m",
 		"MEM_THRESHOLD":      "50",
+		"SWAP_THRESHOLD":     "40",
+		"SWAP_ALERT_WINDOW":  "10m",
 		"DISK_THRESHOLD":     "70",
 		"MOUNT_INCLUDE":      "none",
 		"FSTYPE_EXCLUDE":     "TmpFS,PROC",
@@ -68,6 +70,12 @@ func TestLoadFromEnvAndArgs(t *testing.T) {
 	}
 	if cfg.MemThreshold != 50 {
 		t.Fatalf("expected mem threshold 50, got %.1f", cfg.MemThreshold)
+	}
+	if cfg.SwapThreshold != 40 {
+		t.Fatalf("expected swap threshold 40, got %.1f", cfg.SwapThreshold)
+	}
+	if cfg.SwapAlertWindow != 10*time.Minute {
+		t.Fatalf("expected swap alert window 10m, got %s", cfg.SwapAlertWindow)
 	}
 	if cfg.DiskThreshold != 70 {
 		t.Fatalf("expected disk threshold 70, got %.1f", cfg.DiskThreshold)
