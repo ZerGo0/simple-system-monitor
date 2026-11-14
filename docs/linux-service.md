@@ -11,30 +11,21 @@ sudo curl -L -o /usr/local/bin/simple-system-monitor https://github.com/ZerGo0/s
 sudo chmod 0755 /usr/local/bin/simple-system-monitor
 ```
 
-## 2) Create a service user and working directory
+## 2) Configure environment
+
+Create `/etc/simple-system-monitor.env`, readable by root only:
 
 ```bash
-sudo useradd --system --home /opt/simple-system-monitor --shell /usr/sbin/nologin simple-system-monitor
-sudo mkdir -p /opt/simple-system-monitor
-sudo chown simple-system-monitor:simple-system-monitor /opt/simple-system-monitor
-```
-
-## 3) Configure environment
-
-Create `/opt/simple-system-monitor/.env`:
-
-```bash
-sudo tee /opt/simple-system-monitor/.env >/dev/null <<'ENV'
+sudo install -m 0600 -o root -g root /dev/null /etc/simple-system-monitor.env
+sudo tee /etc/simple-system-monitor.env >/dev/null <<'ENV'
 TELEGRAM_BOT_TOKEN=your-token
 TELEGRAM_CHAT_ID=your-chat-id
 ENV
-sudo chown simple-system-monitor:simple-system-monitor /opt/simple-system-monitor/.env
-sudo chmod 0600 /opt/simple-system-monitor/.env
 ```
 
-The service uses `/opt/simple-system-monitor` as its working directory, so `.env` is loaded automatically.
+systemd reads this file as root and passes the values to the service.
 
-## 4) Create the systemd unit
+## 3) Create the systemd unit
 
 Create `/etc/systemd/system/simple-system-monitor.service`:
 
@@ -46,25 +37,33 @@ After=network-online.target
 
 [Service]
 Type=simple
-User=simple-system-monitor
-Group=simple-system-monitor
-WorkingDirectory=/opt/simple-system-monitor
+DynamicUser=yes
+EnvironmentFile=/etc/simple-system-monitor.env
 ExecStart=/usr/local/bin/simple-system-monitor
 Restart=on-failure
 RestartSec=10s
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+LockPersonality=yes
+SystemCallArchitectures=native
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-## 5) Enable and start
+`DynamicUser=yes` runs the service as a temporary user with a UID from 61184 to 65519. No account is added to `/etc/passwd`, and the UID cannot collide with container users. A static system user often gets UID 999, which is also the user in the MySQL, MariaDB, and Redis images, so their processes and files appear to belong to the monitor. `DynamicUser=yes` also makes the system read-only for the service, gives it a private `/tmp`, and blocks privilege escalation.
+
+## 4) Enable and start
 
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable --now simple-system-monitor
 ```
 
-## 6) Check status and logs
+## 5) Check status and logs
 
 ```bash
 systemctl status simple-system-monitor
@@ -77,4 +76,23 @@ Replace `/usr/local/bin/simple-system-monitor` with the new release and restart:
 
 ```bash
 sudo systemctl restart simple-system-monitor
+```
+
+## Migrating from the static service user
+
+Older versions of this guide created a `simple-system-monitor` user and `/opt/simple-system-monitor/.env`. To move such an install to `DynamicUser`:
+
+```bash
+sudo install -m 0600 -o root -g root /opt/simple-system-monitor/.env /etc/simple-system-monitor.env
+```
+
+Replace the unit with the one in step 3, then remove the static user. systemd reuses an existing user with the unit's name, so delete it while the service is stopped:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl stop simple-system-monitor
+sudo userdel simple-system-monitor
+sudo groupdel simple-system-monitor 2>/dev/null || true
+sudo rm -rf /opt/simple-system-monitor
+sudo systemctl start simple-system-monitor
 ```
